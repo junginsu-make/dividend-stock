@@ -1,0 +1,49 @@
+name: 📊 Dividend Data Auto Update
+
+on:
+  schedule:
+    # 오전: KST 06:30 (미국 정규장 마감 직후)
+    - cron: '30 21 * * 1-5'  # UTC 21:30 = KST 06:30, 월~금
+    # 오후: KST 18:00 (미국 프리마켓 시작)
+    - cron: '0 9 * * 1-5'    # UTC 09:00 = KST 18:00, 월~금
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  update-dividend-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install yfinance pandas numpy
+
+      - name: 💰 Fetch dividend data
+        run: |
+          python us_market/dividend/loader.py
+        env:
+          PYTHONIOENCODING: utf-8
+
+      - name: 📝 Commit and push changes
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add us_market/dividend/data/dividend_universe.json
+          
+          # 변경사항이 있을 때만 커밋
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "📊 Auto-update dividend data $(date +'%Y-%m-%d %H:%M') KST"
+            git push
+          fi
